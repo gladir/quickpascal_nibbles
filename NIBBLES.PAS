@@ -15,7 +15,7 @@ Const
  kbHome=$4700;{Home}
  kbTab=$0F09;{Tabulation}
  kbEnd=$4F00;{End}
- kbEnter=$1C0D;{Enter}
+ kbEnter=$000D;{Enter}
 
 Type
  CenterType=(__Left__,__Justified__,__Right__);
@@ -54,7 +54,7 @@ Var
  X,Y,RX,RY,PR:Array[1..2]of Integer;
 
 Procedure WaitRetrace;Begin
- Delay(10);
+ Delay(10*Speed);
 End;
 
 Function RGB2Color(R,G,B:Byte):LongInt;
@@ -88,9 +88,16 @@ Procedure CloseCur;Begin
  _SetTextCursor($2000);
 End;
 
-Function CenterStr(S:String;Width:Byte):String;Begin
- CenterStr:=S;
- {CenterStr:=StrUSpc(Spc((Width-Length(S))shr 1)+S,Width)}
+Function CenterStr(S:String;Width:Byte):String;
+Var
+ I:Byte;
+ Temp:String;
+Begin
+ Temp:='';
+ For I:=1 to (Width-Length(S))shr 1 do Temp:=Temp+' ';
+ Temp:=Temp+S;
+ While Length(Temp)<Width do Temp:=Temp+' ';
+ CenterStr:=Temp;
 End;
 
 Procedure PutMsg(X:Byte;Msg:String;Kr:Byte);Begin
@@ -141,12 +148,18 @@ Const
  Max=9;
 
 Procedure PutBar(Y:Integer);Begin
- {BarSelHor(6,Y+HomeY,MaxXTxts-6,$A0);}
- {SetMousePos(0,Y*8);}
+ GotoXY(8,HomeY+Y);
+ TextBackground($A);
+ TextColor(0);
+ Write(CenterStr(WordToStr(Y+1),24));
+ ms_set_pos(0,Y*8);
 End;
 
 Procedure UndoBar(Y:Integer);Begin
- {BarSelHor(6,Y+HomeY,MaxXTxts-6,$9);}
+ GotoXY(8,HomeY+Y);
+ TextBackground(0);
+ TextColor($9);
+ Write(CenterStr(WordToStr(Y+1),24));
 End;
 
 Var D:Byte;
@@ -165,16 +178,12 @@ Var
  XM,YM,K,Count:Word;
  J,Y,Wait,BM:Integer;
 Begin
+ If ms_init(BM)Then ms_set_vminmax(0,Max*8);
  Repeat
-  Y:=0;
+  Y:=0;YM:=0;BM:=0;
   If(_SetVideoMode(_TextC40)=0)Then;
-  CloseCur;
-  If ms_init(BM)Then ms_set_vminmax(0,Max*8);
-  _SetColor($9);
-  For J:=0to(Max)do Begin
-   GotoXY(8,HomeY+J);
-   Write(CenterStr(WordToStr(J+1),24));
-  End;
+  If _DisplayCursor(False)Then;
+  For J:=0to(Max)do UndoBar(J);
   PutBar(Y);
   Wait:=0;
   Repeat
@@ -185,31 +194,32 @@ Begin
      Show;
      Wait:=0;
     End;
-    If(ms_get_b($FFFF,Count,XM,YM)=0)Then;
-    If(YM shr 3<>Y)Then Begin
+    {If(ms_get_b($FFFF,Count,XM,YM)=0)Then;}
+    {If(YM shr 3<>Y)Then Begin
      UndoBar(Y);
      Y:=YM shr 3;
+	 If Y>Max Then Y:=Max;
      PutBar(Y);
-    End;
+    End;}
     If BM>0Then Goto 0;
    Until KeyPressed;
    K:=Byte(ReadKey);
    If K=0Then K:=K or (Byte(ReadKey)shl 8);
    Case(K)of
     kbHome:Begin
-     UndoBar(Y);
+	 UndoBar(Y);
      Y:=0;
-     PutBar(Y);
+	 PutBar(Y);
     End;
     kbUp,kbLeft:Begin
      UndoBar(Y);
      Y:=MinByte(Y,Max);
-     PutBar(Y);
+	 PutBar(Y);
     End;
     kbDn,kbTab,kbRight:Begin
      UndoBar(Y);
      Y:=MaxByte(Y,Max);
-     PutBar(Y);
+	 PutBar(Y);
     End;
     kbEnd:Begin
      UndoBar(Y);
@@ -262,7 +272,7 @@ Begin
     _SetColor(228+(J shl 3)+CurrText);
     _SetPixel(X[J],Y[J]);
    End;
-   For J:=1to(Speed)do WaitRetrace;
+   WaitRetrace;
    CurrText:=(CurrText+1)and 7;
    If RX[2]<>0Then Begin
     If _GetPixel(X[2]+RX[2],Y[2])<>0Then Begin
